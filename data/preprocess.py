@@ -13,15 +13,14 @@ def get_dataset(data_path, image_size, batch_size):
 
     dataset = tf.data.Dataset.from_tensor_slices(image_paths)
     dataset = dataset.shuffle(buffer_size=5000, seed=42)
-    # skip zero-byte or unreadable files before decoding —
-    # try_recover_truncated handles partial writes but not empty files
-    dataset = dataset.filter(
-        lambda p: tf.math.greater(tf.strings.length(tf.io.read_file(p)), 100)
-    )
     dataset = dataset.map(
         lambda path: preprocess_image(path, image_size),
         num_parallel_calls=tf.data.AUTOTUNE
     )
+    # preprocess_image returns (image, valid) — drop any files that were empty
+    # the filter only checks a boolean, no extra Drive reads
+    dataset = dataset.filter(lambda img, valid: valid)
+    dataset = dataset.map(lambda img, valid: img)
     dataset = dataset.batch(batch_size, drop_remainder=True)
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
 
@@ -31,20 +30,29 @@ def get_dataset(data_path, image_size, batch_size):
 def preprocess_image(path, image_size):
     """
     Loads a single RICO screenshot and prepares it for training.
+    Returns (image, valid) so the pipeline can filter empty files
+    without a separate read pass.
     - Center crops from 1440x2560 to 1440x1440 (preserves aspect ratio)
     - Resizes to image_size x image_size
     - Normalizes pixel values from [0, 255] to [-1, 1]
     """
-    image = tf.io.read_file(path)
-    image = tf.image.decode_jpeg(image, channels=3, try_recover_truncated=True)
-    
-    # rico images are 1440x2560 portrait — center crop to square
-    # avoids squishing the aspect ratio when resizing
-    image = tf.image.resize_with_crop_or_pad(image, 1440, 1440)
-    image = tf.image.resize(image, [image_size, image_size])
+    raw = tf.io.read_file(path)
+    valid = tf.math.greater(tf.strings.length(raw), 100)
 
-    # cast and normalize to [-1, 1] for stable diffusion training
-    image = tf.cast(image, tf.float32) / 255.0
-    image = image * 2.0 - 1.0
+    def decode_and_process():
+        img = tf.image.decode_jpeg(raw, channels=3, try_recover_truncated=True)
+        # rico images are 1440x2560 portrait — center crop to square
+        # avoids squishing the aspect ratio when resizing
+        img = tf.image.resize_with_crop_or_pad(img, 1440, 1440)
+        img = tf.image.resize(img, [image_size, image_size])
+        # cast and normalize to [-1, 1] for stable diffusion training
+        img = tf.cast(img, tf.float32) / 255.0
+        return img * 2.0 - 1.0
 
-    return image
+    image = tf.cond(
+        valid,
+        decode_and_process,
+        lambda: tf.zeros([image_size, image_size, 3], dtype=tf.float32)
+    )
+
+    return image, valid
