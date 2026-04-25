@@ -31,8 +31,8 @@ def preprocess_image(path, image_size):
     - Normalizes pixel values from [0, 255] to [-1, 1]
     """
     image = tf.io.read_file(path)
-    image = tf.image.decode_jpeg(image, channels=3)
-
+    image = tf.image.decode_jpeg(image, channels=3, try_recover_truncated=True)
+    
     # rico images are 1440x2560 portrait — center crop to square
     # avoids squishing the aspect ratio when resizing
     image = tf.image.resize_with_crop_or_pad(image, 1440, 1440)
