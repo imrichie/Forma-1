@@ -4,7 +4,6 @@ import tensorflow as tf
 
 from model.diffusion import get_sinusoidal_embedding
 
-@tf.function
 def train_step(model, optimizer, x, alpha_bar, T, time_dim):
     """
     Single training step.
