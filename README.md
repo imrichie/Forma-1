@@ -1,6 +1,6 @@
 # Forma-1
 
-`Forma-1` is a diffusion model trained from scratch on 36,536 mobile UI screenshots from the [RICO](https://interactionmining.org/rico) dataset. Give it random noise and it will denoise it into something that looks like a mobile app screen.
+`Forma-1` is a diffusion model trained on 36,536 mobile UI screenshots from the [RICO](https://interactionmining.org/rico) dataset. Give it random noise and it will denoise it into something that looks like a mobile app screen.
 
 Built as part of DiffuseUI — a project exploring generative AI applied to interface design.
 

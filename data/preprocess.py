@@ -13,11 +13,16 @@ def get_dataset(data_path, image_size, batch_size):
 
     dataset = tf.data.Dataset.from_tensor_slices(image_paths)
     dataset = dataset.shuffle(buffer_size=5000, seed=42)
+    # skip zero-byte or unreadable files before decoding —
+    # try_recover_truncated handles partial writes but not empty files
+    dataset = dataset.filter(
+        lambda p: tf.math.greater(tf.strings.length(tf.io.read_file(p)), 100)
+    )
     dataset = dataset.map(
         lambda path: preprocess_image(path, image_size),
         num_parallel_calls=tf.data.AUTOTUNE
     )
-    dataset = dataset.batch(batch_size)
+    dataset = dataset.batch(batch_size, drop_remainder=True)
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
 
     return dataset, len(image_paths)
